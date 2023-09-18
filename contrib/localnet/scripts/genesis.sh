@@ -78,17 +78,19 @@ then
   # 1. Accumulate all the os_info files from other nodes on zetcacore0 and create a genesis.json
   for NODE in "${NODELIST[@]}"; do
     INDEX=${NODE:0-1}
-    echo "Waiting for SSH to be available on zetaclient"$INDEX" and zetacore"$INDEX"..."
-    while true; do
-      if ssh zetaclient"$INDEX" "mkdir -p ~/.zetacored/"; then
-        scp "$NODE":~/.zetacored/os_info/os.json ~/.zetacored/os_info/os_z"$INDEX".json
-        scp ~/.zetacored/os_info/os_z"$INDEX".json zetaclient"$INDEX":~/.zetacored/os.json
-        break
-      else
-        echo "SSH on zetaclient$INDEX nor zetacore$INDEX is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+    if [ "$INDEX" != "-1" ] && [ "$NODE" != "zetacore-1" ]; then
+      echo "Waiting for SSH to be available on zetaclient"$INDEX" and zetacore"$INDEX"..."
+      while true; do
+        if ssh zetaclient"$INDEX" "mkdir -p ~/.zetacored/"; then
+          scp "$NODE":~/.zetacored/os_info/os.json ~/.zetacored/os_info/os_z"$INDEX".json
+          scp ~/.zetacored/os_info/os_z"$INDEX".json zetaclient"$INDEX":~/.zetacored/os.json
+          break
+        else
+          echo "SSH on zetaclient$INDEX nor zetacore$INDEX is not available yet. Retrying..."
+          sleep 5
+        fi
+      done
+    fi
   done
 
   ssh zetaclient0 mkdir -p ~/.zetacored/
@@ -113,33 +115,37 @@ then
   zetacored gentx operator 1000000000000000000000azeta --chain-id=$CHAINID --keyring-backend=$KEYRING
   # Copy host gentx to other nodes
   for NODE in "${NODELIST[@]}"; do
-    echo "Waiting for SSH to be available on "$NODE"..."
-    while true; do
-      if ssh "$NODE" "mkdir -p ~/.zetacored/config/gentx/peer/"; then
-        scp ~/.zetacored/config/gentx/* "$NODE":~/.zetacored/config/gentx/peer/
-        break
-      else
-        echo "SSH on $NODE is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+    if [ "$NODE" != "zetacore-1" ]; then
+      echo "Waiting for SSH to be available on "$NODE"..."
+      while true; do
+        if ssh "$NODE" "mkdir -p ~/.zetacored/config/gentx/peer/"; then
+          scp ~/.zetacored/config/gentx/* "$NODE":~/.zetacored/config/gentx/peer/
+          break
+        else
+          echo "SSH on $NODE is not available yet. Retrying..."
+          sleep 5
+        fi
+      done
+    fi
   done
   # Create gentx files on other nodes and copy them to host node
   mkdir ~/.zetacored/config/gentx/z2gentx
   for NODE in "${NODELIST[@]}"; do
-    echo "Waiting for SSH to be available on "$NODE"..."
-    while true; do
-      if ssh "$NODE" "rm -rf ~/.zetacored/genesis.json"; then
-        scp ~/.zetacored/config/genesis.json "$NODE":~/.zetacored/config/genesis.json
-        ssh "$NODE" "zetacored gentx operator 1000000000000000000000azeta --chain-id=$CHAINID --keyring-backend=$KEYRING"
-        scp "$NODE":~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/
-        scp "$NODE":~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/z2gentx/
-        break
-      else
-        echo "SSH on $NODE is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+    if [ "$NODE" != "zetacore-1" ]; then
+      echo "Waiting for SSH to be available on "$NODE"..."
+      while true; do
+        if ssh "$NODE" "rm -rf ~/.zetacored/genesis.json"; then
+          scp ~/.zetacored/config/genesis.json "$NODE":~/.zetacored/config/genesis.json
+          ssh "$NODE" "zetacored gentx operator 1000000000000000000000azeta --chain-id=$CHAINID --keyring-backend=$KEYRING"
+          scp "$NODE":~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/
+          scp "$NODE":~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/z2gentx/
+          break
+        else
+          echo "SSH on $NODE is not available yet. Retrying..."
+          sleep 5
+        fi
+      done
+    fi
   done
 
 # 4. Collect all the gentx files in zetacore0 and create the final genesis.json
@@ -147,16 +153,18 @@ then
   zetacored validate-genesis
 # 5. Copy the final genesis.json to all the nodes
   for NODE in "${NODELIST[@]}"; do
-    echo "Waiting for SSH to be available on "$NODE"..."
-    while true; do
-      if ssh "$NODE" "rm -rf ~/.zetacored/genesis.json"; then
-        scp ~/.zetacored/config/genesis.json "$NODE":~/.zetacored/config/genesis.json
-        break
-      else
-        echo "SSH on $NODE is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+    if [ "$NODE" != "zetacore-1" ]; then
+      echo "Waiting for SSH to be available on "$NODE"..."
+      while true; do
+        if ssh "$NODE" "rm -rf ~/.zetacored/genesis.json"; then
+          scp ~/.zetacored/config/genesis.json "$NODE":~/.zetacored/config/genesis.json
+          break
+        else
+          echo "SSH on $NODE is not available yet. Retrying..."
+          sleep 5
+        fi
+      done
+    fi
   done
 # 6. Update Config in zetacore0 so that it has the correct persistent peer list
   sleep 2
