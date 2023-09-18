@@ -11,7 +11,23 @@ node="zetacore$num"
 #mv /root/tss/$HOSTNAME /root/.tss
 
 echo "Wait for zetacore to exchange genesis file"
-sleep 30
+
+os_file_path="$HOME/.zetacored/os.json"
+os_file_created() {
+  [ -f "$os_file_path" ]
+}
+
+echo "Waiting for the file to be created: $os_file_path"
+while true; do
+  if os_file_created; then
+    echo "File has been created: $os_file_path"
+    break
+  else
+    echo "$os_file_path not created yet. Retrying..."
+    sleep 10 
+  fi
+done
+
 operator=$(cat $HOME/.zetacored/os.json | jq '.ObserverAddress' )
 operatorAddress=$(echo "$operator" | tr -d '"')
 echo "operatorAddress: $operatorAddress"
