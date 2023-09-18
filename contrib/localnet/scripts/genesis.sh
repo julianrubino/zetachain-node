@@ -9,6 +9,8 @@ then
 fi
 NUMOFNODES=$1
 
+sleep 20
+
 # create keys
 CHAINID="athens_101-1"
 KEYRING="test"
@@ -46,7 +48,7 @@ source ~/os-info.sh
 if [ $HOSTNAME != "zetacore0" ]
 then
   echo "Waiting for zetacore0 to create genesis.json"
-  sleep $((10*NUMOFNODES))
+  sleep $((7*NUMOFNODES))
   echo "genesis.json created"
 fi
 
@@ -62,33 +64,16 @@ fi
 # Start of genesis creation . This is done only on zetacore0
 if [ $HOSTNAME == "zetacore0" ]
 then
-  echo "Waiting for SSH to be available on zetaclient0..."
-  while true; do
-    if ssh zetaclient0 "mkdir -p ~/.zetacored/keyring-test/"; then
-      # Misc : Copying the keyring to the client nodes so that they can sign the transactions
-      scp ~/.zetacored/keyring-test/* zetaclient0:~/.zetacored/keyring-test/
-      echo "SSH command executed successfully on zetaclient0."
-      break
-    else
-      echo "SSH on zetaclient0 is not available yet. Retrying..."
-      sleep 5  
-    fi
-  done
+  # Misc : Copying the keyring to the client nodes so that they can sign the transactions
+  ssh zetaclient0 mkdir -p ~/.zetacored/keyring-test/
+  scp ~/.zetacored/keyring-test/* zetaclient0:~/.zetacored/keyring-test/
 
-  # 1. Accumulate all the os_info files from other nodes on zetcacore0 and create a genesis.json
+# 1. Accumulate all the os_info files from other nodes on zetcacore0 and create a genesis.json
   for NODE in "${NODELIST[@]}"; do
     INDEX=${NODE:0-1}
-    echo "Waiting for SSH to be available on zetaclient"$INDEX"..."
-    while true; do
-      if ssh zetaclient"$INDEX" "mkdir -p ~/.zetacored/"; then
-        scp "$NODE":~/.zetacored/os_info/os.json ~/.zetacored/os_info/os_z"$INDEX".json
-        scp ~/.zetacored/os_info/os_z"$INDEX".json zetaclient"$INDEX":~/.zetacored/os.json
-        break
-      else
-        echo "SSH on zetaclient$INDEX is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+    ssh zetaclient"$INDEX" mkdir -p ~/.zetacored/
+    scp "$NODE":~/.zetacored/os_info/os.json ~/.zetacored/os_info/os_z"$INDEX".json
+    scp ~/.zetacored/os_info/os_z"$INDEX".json zetaclient"$INDEX":~/.zetacored/os.json
   done
 
   ssh zetaclient0 mkdir -p ~/.zetacored/
@@ -113,33 +98,17 @@ then
   zetacored gentx operator 1000000000000000000000azeta --chain-id=$CHAINID --keyring-backend=$KEYRING
   # Copy host gentx to other nodes
   for NODE in "${NODELIST[@]}"; do
-    echo "Waiting for SSH to be available on "$NODE"..."
-    while true; do
-      if ssh "$NODE" "mkdir -p ~/.zetacored/config/gentx/peer/"; then
-        scp ~/.zetacored/config/gentx/* "$NODE":~/.zetacored/config/gentx/peer/
-        break
-      else
-        echo "SSH on $NODE is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+    ssh $NODE mkdir -p ~/.zetacored/config/gentx/peer/
+    scp ~/.zetacored/config/gentx/* $NODE:~/.zetacored/config/gentx/peer/
   done
   # Create gentx files on other nodes and copy them to host node
   mkdir ~/.zetacored/config/gentx/z2gentx
   for NODE in "${NODELIST[@]}"; do
-    echo "Waiting for SSH to be available on "$NODE"..."
-    while true; do
-      if ssh "$NODE" "rm -rf ~/.zetacored/genesis.json"; then
-        scp ~/.zetacored/config/genesis.json "$NODE":~/.zetacored/config/genesis.json
-        ssh "$NODE" "zetacored gentx operator 1000000000000000000000azeta --chain-id=$CHAINID --keyring-backend=$KEYRING"
-        scp "$NODE":~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/
-        scp "$NODE":~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/z2gentx/
-        break
-      else
-        echo "SSH on $NODE is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+      ssh $NODE rm -rf ~/.zetacored/genesis.json
+      scp ~/.zetacored/config/genesis.json $NODE:~/.zetacored/config/genesis.json
+      ssh $NODE zetacored gentx operator 1000000000000000000000azeta --chain-id=$CHAINID --keyring-backend=$KEYRING
+      scp $NODE:~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/
+      scp $NODE:~/.zetacored/config/gentx/* ~/.zetacored/config/gentx/z2gentx/
   done
 
 # 4. Collect all the gentx files in zetacore0 and create the final genesis.json
@@ -147,38 +116,24 @@ then
   zetacored validate-genesis
 # 5. Copy the final genesis.json to all the nodes
   for NODE in "${NODELIST[@]}"; do
-    echo "Waiting for SSH to be available on "$NODE"..."
-    while true; do
-      if ssh "$NODE" "rm -rf ~/.zetacored/genesis.json"; then
-        scp ~/.zetacored/config/genesis.json "$NODE":~/.zetacored/config/genesis.json
-        break
-      else
-        echo "SSH on $NODE is not available yet. Retrying..."
-        sleep 5
-      fi
-    done
+      ssh $NODE rm -rf ~/.zetacored/genesis.json
+      scp ~/.zetacored/config/genesis.json $NODE:~/.zetacored/config/genesis.json
   done
 # 6. Update Config in zetacore0 so that it has the correct persistent peer list
-  sleep 2
-  pp=$(cat $HOME/.zetacored/config/gentx/z2gentx/*.json | jq '.body.memo' )
-  pps=${pp:1:58}
-  sed -i -e "/persistent_peers =/s/=.*/= \"$pps\"/" "$HOME"/.zetacored/config/config.toml
+   sleep 2
+   pp=$(cat $HOME/.zetacored/config/gentx/z2gentx/*.json | jq '.body.memo' )
+   pps=${pp:1:58}
+   sed -i -e "/persistent_peers =/s/=.*/= \"$pps\"/" "$HOME"/.zetacored/config/config.toml
 fi
 # End of genesis creation steps . The steps below are common to all the nodes
 
 # Update persistent peers
 if [ $HOSTNAME != "zetacore0" ]
 then
-  echo "Waiting for SSH to be available on zetaclient"$INDEX"..."
-  while true; do
-    if ssh "zetaclient$INDEX" mkdir -p ~/.zetacored/keyring-test/; then
-      scp ~/.zetacored/keyring-test/* "zetaclient$INDEX":~/.zetacored/keyring-test/
-      break
-    else
-      echo "SSH on zetaclient$INDEX is not available yet. Retrying..."
-      sleep 5
-    fi
-  done
+  # Misc : Copying the keyring to the client nodes so that they can sign the transactions
+  ssh zetaclient"$INDEX" mkdir -p ~/.zetacored/keyring-test/
+  scp ~/.zetacored/keyring-test/* "zetaclient$INDEX":~/.zetacored/keyring-test/
+
   pp=$(cat $HOME/.zetacored/config/gentx/peer/*.json | jq '.body.memo' )
   pps=${pp:1:58}
   sed -i -e "/persistent_peers =/s/=.*/= \"$pps\"/" "$HOME"/.zetacored/config/config.toml
