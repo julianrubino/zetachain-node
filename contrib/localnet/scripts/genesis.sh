@@ -75,20 +75,20 @@ then
     fi
   done
 
-
-# 1. Accumulate all the os_info files from other nodes on zetcacore0 and create a genesis.json
+  # 1. Accumulate all the os_info files from other nodes on zetcacore0 and create a genesis.json
   for NODE in "${NODELIST[@]}"; do
-  INDEX=${NODE:0-1}
-  echo "Waiting for SSH to be available on zetaclient"$INDEX"..."
-  while true; do
-    if ssh zetaclient"$INDEX" "mkdir -p ~/.zetacored/"; then
-      scp "$NODE":~/.zetacored/os_info/os.json ~/.zetacored/os_info/os_z"$INDEX".json
-      scp ~/.zetacored/os_info/os_z"$INDEX".json zetaclient"$INDEX":~/.zetacored/os.json
-      break
-    else
-      echo "SSH on zetaclient$INDEX is not available yet. Retrying..."
-      sleep 5
-    fi
+    INDEX=${NODE:0-1}
+    echo "Waiting for SSH to be available on zetaclient"$INDEX"..."
+    while true; do
+      if ssh zetaclient"$INDEX" "mkdir -p ~/.zetacored/"; then
+        scp "$NODE":~/.zetacored/os_info/os.json ~/.zetacored/os_info/os_z"$INDEX".json
+        scp ~/.zetacored/os_info/os_z"$INDEX".json zetaclient"$INDEX":~/.zetacored/os.json
+        break
+      else
+        echo "SSH on zetaclient$INDEX is not available yet. Retrying..."
+        sleep 5
+      fi
+    done
   done
 
   ssh zetaclient0 mkdir -p ~/.zetacored/
